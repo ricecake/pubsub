@@ -1,2 +1,9 @@
-# pubsub
-A simple Erlang message routing app
+pubsub
+=====
+
+An OTP application
+
+Build
+-----
+
+    $ rebar3 compile
