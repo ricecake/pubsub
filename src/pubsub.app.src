@@ -1,8 +1,8 @@
-{application, 'pubsub',
- [{description, "An OTP application"},
+{application, pubsub,
+ [{description, "A fast message routing publish/subcribe system"},
   {vsn, "0.1.0"},
   {registered, []},
-  {mod, {'pubsub_app', []}},
+  {mod, {pubsub_app, []}},
   {applications,
    [kernel,
     stdlib

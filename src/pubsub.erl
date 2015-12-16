@@ -6,3 +6,12 @@
 	subscribe/1,
 	subscribe/2
 ]).
+
+start() ->
+	application:ensure_all_started(pubsub).
+
+publish(Topic, Message) -> pubsub_srv:publish(Topic, Message).
+
+subscribe(Topic) -> pubsub_srv:subscribe(Topic).
+
+subscribe(Topic, Callback) -> pubsub_srv:subscribe(Topic, Callback).

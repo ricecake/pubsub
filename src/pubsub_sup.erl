@@ -3,7 +3,7 @@
 %% @end
 %%%-------------------------------------------------------------------
 
--module('pubsub_sup').
+-module(pubsub_sup).
 
 -behaviour(supervisor).
 
@@ -32,7 +32,7 @@ start_link() ->
 init([]) ->
 	ok = pubsub_srv:init_tables(),
 	{ok, { {one_for_all, 0, 1}, [
-		?CHILD(hot_proxy_event, worker)
+		?CHILD(pubsub_srv, worker)
 	]} }.
 
 %%====================================================================
