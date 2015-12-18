@@ -11,6 +11,7 @@
 	init_tables/0,
 	subscribe/1,
 	subscribe/2,
+	unsubscribe/1,
 	publish/2,
 	lookup/1
 ]).
@@ -46,6 +47,10 @@ subscribe(Topics, Callback) when is_list(Topics)->
 	gen_server:call(?MODULE, {subscribe, Topics, Callback});
 subscribe(Topic, Callback) -> subscribe([Topic], Callback).
 
+unsubscribe(Topics) when is_list(Topics)->
+	gen_server:call(?MODULE, {unsubscribe, Topics});
+unsubscribe(Topic) -> unsubscribe([Topic]).
+
 publish(Topic, Message) ->
 	[send_event(Message, self(), Topic, Rec)|| Rec <- lookup(Topic)],
 	ok.
@@ -70,6 +75,12 @@ handle_call({subscribe, Topics, Callback}, {From, _}, #{ subscribers := Subs } =
 	NewSubs = ensure_monitor(From, Subs),
 	true = ets:insert(?MODULE, lists:flatten([routify(Topic, {From, Callback}) || Topic <- Topics])),
 	{reply, ok, State#{ subscribers :=  NewSubs }};
+handle_call({unsubscribe, Topics}, {From, _}, State) ->
+	[begin
+		{ok, [Key |_]} = path(Topic),
+		true = ets:delete_object(?MODULE, {Key, From})
+	end || Topic <- Topics],
+	{reply, ok, State};
 handle_call(_Request, _From, State) ->
 	{reply, ok, State}.
 
@@ -114,8 +125,7 @@ ensure_monitor(New, Existing) when is_pid(New) ->
 	end.
 
 routify(Key, Data) ->
-	{ok, RevPath} = path(Key),
-	[Terminal |Nodes] = lists:reverse(RevPath),
+	{ok, [Terminal |Nodes]} = path(Key),
 	[{Terminal, Data}|[ {Node, undefined} || Node <- Nodes]].
 
 path(Key) when is_binary(Key) ->
@@ -126,7 +136,7 @@ path(Key) when is_binary(Key) ->
 		(Node, {Parent, List}) ->
 			{<< Parent/bits, $., Node/bits >>, [{Parent, Node} |List]}
 	end, {null, []}, Path),
-	{ok, lists:reverse(Nodes)}.
+	{ok, Nodes}.
 
 do_lookup(_, [], Callbacks) -> Callbacks;
 do_lookup(Parent, [Label], Callbacks) ->
