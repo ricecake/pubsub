@@ -155,7 +155,7 @@ do_lookup(Parent, [Label |Path], Callbacks) ->
 	do_lookup(NewParent, Path, NewCallbacks).
 
 subpaths(Path) ->
-	{Last, SubPaths} = lists:foldl(fun
+	case lists:foldl(fun
 		(El, {null, Paths})->
 			{[El], Paths};
 		(El, {Curr, Paths})->
@@ -163,15 +163,21 @@ subpaths(Path) ->
 		end,
 		{null, []},
 		lists:reverse(Path)
-	),
-	[Last |SubPaths].
+	) of
+		{null, []} -> [];
+		{Last, SubPaths} -> [Last |SubPaths]
+	end.
 
 resolve_wildcards(Parent, NewParent, Path, Callbacks) ->
 	StarCallbacks = case ets:lookup(?MODULE, {Parent, <<"*">>}) of
 		[]     -> Callbacks;
-		[_] -> do_lookup(NewParent, Path, Callbacks)
+		Found ->
+			if
+				Path == [] -> Found;
+				Path /= [] -> do_lookup(NewParent, Path, Callbacks)
+			end
 	end,
 	case ets:lookup(?MODULE, {Parent, <<"#">>}) of
-		[]     -> Callbacks;
+		[]     -> StarCallbacks;
 		Nodes  -> Nodes ++ lists:flatten([ do_lookup(NewParent, ThisPath, StarCallbacks) || ThisPath <- subpaths(Path)])
 	end.
