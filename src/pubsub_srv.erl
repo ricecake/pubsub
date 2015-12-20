@@ -140,17 +140,11 @@ path(Key) when is_binary(Key) ->
 
 do_lookup(_, [], Callbacks) -> Callbacks;
 do_lookup(Parent, [Label], Callbacks) ->
-	NewParent = if
-		Parent ==  null -> Label;
-		Parent =/= null -> << Parent/bits, $., Label/bits >>
-	end,
+	NewParent = derive_newpath(Parent, Label),
 	NewCallbacks = resolve_wildcards(Parent, NewParent, [], Callbacks),
 	ets:lookup(?MODULE, {Parent, Label}) ++ NewCallbacks;
 do_lookup(Parent, [Label |Path], Callbacks) ->
-	NewParent = if
-		Parent ==  null -> Label;
-		Parent =/= null -> << Parent/bits, $., Label/bits >>
-	end,
+	NewParent = derive_newpath(Parent, Label),
 	NewCallbacks = resolve_wildcards(Parent, NewParent, Path, Callbacks),
 	do_lookup(NewParent, Path, NewCallbacks).
 
@@ -174,10 +168,18 @@ resolve_wildcards(Parent, NewParent, Path, Callbacks) ->
 		Found ->
 			if
 				Path == [] -> Found;
-				Path /= [] -> do_lookup(NewParent, Path, Callbacks)
+				Path /= [] ->
+					StarParent = derive_newpath(Parent, <<"*">>),
+					do_lookup(StarParent, Path, Callbacks)
 			end
 	end,
 	case ets:lookup(?MODULE, {Parent, <<"#">>}) of
 		[]     -> StarCallbacks;
 		Nodes  -> Nodes ++ lists:flatten([ do_lookup(NewParent, ThisPath, StarCallbacks) || ThisPath <- subpaths(Path)])
+	end.
+
+derive_newpath(OldPath, Label) ->
+	if
+		OldPath ==  null -> Label;
+		OldPath =/= null -> << OldPath/bits, $., Label/bits >>
 	end.
