@@ -52,7 +52,10 @@ unsubscribe(Topics) when is_list(Topics)->
 unsubscribe(Topic) -> unsubscribe([Topic]).
 
 publish(Topic, Message) ->
-	[send_event(Message, self(), Topic, Rec)|| Rec <- lookup(Topic)],
+	[begin
+		io:format("~p~n", [{Rec, Topic, Message}]),
+		send_event(Message, self(), Topic, Rec)
+	end|| Rec <- lookup(Topic)],
 	ok.
 
 lookup(Route) ->
@@ -113,6 +116,7 @@ send_event(Message, From, Topic, {Subscriber, Fun}) ->
 	Fun(Subscriber, From, {Topic, Message}),
 	ok;
 send_event(Message, From, Topic, Subscriber) ->
+	io:format("~p~n", [{Subscriber, Topic, From, Message}]),
 	Subscriber ! {pubsub_event, From, {Topic, Message}},
 	ok.
 
@@ -142,7 +146,7 @@ do_lookup(_, [], Callbacks) -> Callbacks;
 do_lookup(Parent, [Label], Callbacks) ->
 	NewParent = derive_newpath(Parent, Label),
 	NewCallbacks = resolve_wildcards(Parent, NewParent, [], Callbacks),
-	ets:lookup(?MODULE, {Parent, Label}) ++ NewCallbacks;
+	filtered_lookup({Parent, Label}) ++ NewCallbacks;
 do_lookup(Parent, [Label |Path], Callbacks) ->
 	NewParent = derive_newpath(Parent, Label),
 	NewCallbacks = resolve_wildcards(Parent, NewParent, Path, Callbacks),
@@ -163,7 +167,7 @@ subpaths(Path) ->
 	end.
 
 resolve_wildcards(Parent, NewParent, Path, Callbacks) ->
-	StarCallbacks = case ets:lookup(?MODULE, {Parent, <<"*">>}) of
+	StarCallbacks = case filtered_lookup({Parent, <<"*">>}) of
 		[]     -> Callbacks;
 		Found ->
 			if
@@ -173,7 +177,7 @@ resolve_wildcards(Parent, NewParent, Path, Callbacks) ->
 					do_lookup(StarParent, Path, Callbacks)
 			end
 	end,
-	case ets:lookup(?MODULE, {Parent, <<"#">>}) of
+	case filtered_lookup({Parent, <<"#">>}) of
 		[]     -> StarCallbacks;
 		Nodes  -> Nodes ++ lists:flatten([ do_lookup(NewParent, ThisPath, StarCallbacks) || ThisPath <- subpaths(Path)])
 	end.
@@ -183,3 +187,6 @@ derive_newpath(OldPath, Label) ->
 		OldPath ==  null -> Label;
 		OldPath =/= null -> << OldPath/bits, $., Label/bits >>
 	end.
+
+filtered_lookup(ID) ->
+	[ Node || Node = {_, Data} <- ets:lookup(?MODULE, ID), Data =/= undefined ].
