@@ -60,7 +60,7 @@ publish(Topic, Message) ->
 
 lookup(Route) ->
 	Path = binary:split(Route, <<".">>, [global]),
-	[ Data || {_, Data} <- do_lookup(null, Path, [])].
+	[ Data || {_, Data} <- do_lookup(null, Path, []), Data =/= undefined].
 
 
 %% ------------------------------------------------------------------
@@ -146,7 +146,7 @@ do_lookup(_, [], Callbacks) -> Callbacks;
 do_lookup(Parent, [Label], Callbacks) ->
 	NewParent = derive_newpath(Parent, Label),
 	NewCallbacks = resolve_wildcards(Parent, NewParent, [], Callbacks),
-	filtered_lookup({Parent, Label}) ++ NewCallbacks;
+	ets:lookup(?MODULE, {Parent, Label}) ++ NewCallbacks;
 do_lookup(Parent, [Label |Path], Callbacks) ->
 	NewParent = derive_newpath(Parent, Label),
 	NewCallbacks = resolve_wildcards(Parent, NewParent, Path, Callbacks),
@@ -167,19 +167,21 @@ subpaths(Path) ->
 	end.
 
 resolve_wildcards(Parent, NewParent, Path, Callbacks) ->
-	StarCallbacks = case filtered_lookup({Parent, <<"*">>}) of
+	StarCallbacks = case ets:lookup(?MODULE, {Parent, <<"*">>}) of
 		[]     -> Callbacks;
 		Found ->
 			if
-				Path == [] -> Found;
+				Path == [] -> [ Node || Node = {_, Data} <- Found, Data =/= undefined ];
 				Path /= [] ->
 					StarParent = derive_newpath(Parent, <<"*">>),
 					do_lookup(StarParent, Path, Callbacks)
 			end
 	end,
-	case filtered_lookup({Parent, <<"#">>}) of
+	case ets:lookup(?MODULE, {Parent, <<"#">>}) of
 		[]     -> StarCallbacks;
-		Nodes  -> Nodes ++ lists:flatten([ do_lookup(NewParent, ThisPath, StarCallbacks) || ThisPath <- subpaths(Path)])
+		Nodes  ->
+			HashParent = derive_newpath(Parent, <<"#">>),
+			Nodes ++ lists:flatten([ do_lookup(HashParent, ThisPath, StarCallbacks) || ThisPath <- subpaths(Path)])
 	end.
 
 derive_newpath(OldPath, Label) ->
@@ -187,6 +189,3 @@ derive_newpath(OldPath, Label) ->
 		OldPath ==  null -> Label;
 		OldPath =/= null -> << OldPath/bits, $., Label/bits >>
 	end.
-
-filtered_lookup(ID) ->
-	[ Node || Node = {_, Data} <- ets:lookup(?MODULE, ID), Data =/= undefined ].
