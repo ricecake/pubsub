@@ -60,7 +60,7 @@ publish(Topic, Message) ->
 
 lookup(Route) ->
 	Path = binary:split(Route, <<".">>, [global]),
-	[ Data || {_, Data} <- do_lookup(null, Path, []), Data =/= undefined].
+	lists:usort([ Data || {_, Data} <- do_lookup(null, Path, []), Data =/= undefined]).
 
 
 %% ------------------------------------------------------------------
