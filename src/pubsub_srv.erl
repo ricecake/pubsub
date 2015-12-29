@@ -144,12 +144,11 @@ path(Key) when is_binary(Key) ->
 
 do_lookup(_, [], Callbacks) -> Callbacks;
 do_lookup(Parent, [Label], Callbacks) ->
-	NewParent = derive_newpath(Parent, Label),
-	NewCallbacks = resolve_wildcards(Parent, NewParent, [], Callbacks),
+	NewCallbacks = resolve_wildcards(Parent, [], Callbacks),
 	ets:lookup(?MODULE, {Parent, Label}) ++ NewCallbacks;
 do_lookup(Parent, [Label |Path], Callbacks) ->
 	NewParent = derive_newpath(Parent, Label),
-	NewCallbacks = resolve_wildcards(Parent, NewParent, Path, Callbacks),
+	NewCallbacks = resolve_wildcards(Parent, Path, Callbacks),
 	do_lookup(NewParent, Path, NewCallbacks).
 
 subpaths(Path) ->
@@ -166,7 +165,7 @@ subpaths(Path) ->
 		{Last, SubPaths} -> [Last |SubPaths]
 	end.
 
-resolve_wildcards(Parent, NewParent, Path, Callbacks) ->
+resolve_wildcards(Parent, Path, Callbacks) ->
 	StarCallbacks = case ets:lookup(?MODULE, {Parent, <<"*">>}) of
 		[]     -> Callbacks;
 		Found ->
