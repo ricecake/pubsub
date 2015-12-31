@@ -116,7 +116,6 @@ send_event(Message, From, Topic, {Subscriber, Fun}) ->
 	Fun(Subscriber, From, {Topic, Message}),
 	ok;
 send_event(Message, From, Topic, Subscriber) ->
-	io:format("~p~n", [{Subscriber, Topic, From, Message}]),
 	Subscriber ! {pubsub_event, From, {Topic, Message}},
 	ok.
 
