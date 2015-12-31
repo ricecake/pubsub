@@ -52,10 +52,7 @@ unsubscribe(Topics) when is_list(Topics)->
 unsubscribe(Topic) -> unsubscribe([Topic]).
 
 publish(Topic, Message) ->
-	[begin
-		io:format("~p~n", [{Rec, Topic, Message}]),
-		send_event(Message, self(), Topic, Rec)
-	end|| Rec <- lookup(Topic)],
+	[send_event(Message, self(), Topic, Rec) || Rec <- lookup(Topic)],
 	ok.
 
 lookup(Route) ->
