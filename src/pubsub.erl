@@ -5,7 +5,8 @@
 	publish/2,
 	subscribe/1,
 	subscribe/2,
-	unsubscribe/1
+	unsubscribe/1,
+        route_escape/1
 ]).
 
 start() ->
@@ -18,3 +19,5 @@ subscribe(Topic) -> pubsub_srv:subscribe(Topic).
 subscribe(Topic, Callback) -> pubsub_srv:subscribe(Topic, Callback).
 
 unsubscribe(Topic) -> pubsub_srv:unsubscribe(Topic).
+
+route_escape(Binary) -> binary:replace(Binary, <<$.>>, <<$+>>, [global]).
