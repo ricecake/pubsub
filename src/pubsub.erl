@@ -2,22 +2,25 @@
 
 -export([
 	start/0,
-	publish/2,
-	subscribe/1,
+	declare_exchange/1,
+	publish/3,
 	subscribe/2,
-	unsubscribe/1,
+	subscribe/3,
+	unsubscribe/2,
 	route_escape/1
 ]).
 
 start() ->
 	application:ensure_all_started(pubsub).
 
-publish(Topic, Message) -> pubsub_srv:publish(Topic, Message).
+declare_exchange(Exchange) -> pubsub_srv:declare_exchange(Exchange).
 
-subscribe(Topic) -> pubsub_srv:subscribe(Topic).
+publish(Exchange, Topic, Message) -> pubsub_srv:publish(Exchange, Topic, Message).
 
-subscribe(Topic, Callback) -> pubsub_srv:subscribe(Topic, Callback).
+subscribe(Exchange, Topic) when is_atom(Exchange) -> pubsub_srv:subscribe(Exchange, Topic). 
 
-unsubscribe(Topic) -> pubsub_srv:unsubscribe(Topic).
+subscribe(Exchange, Topic, Callback) -> pubsub_srv:subscribe(Exchange, Topic, Callback).
+
+unsubscribe(Exchange, Topic) -> pubsub_srv:unsubscribe(Exchange, Topic).
 
 route_escape(Binary) -> binary:replace(Binary, <<$.>>, <<$+>>, [global]).
