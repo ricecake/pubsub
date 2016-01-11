@@ -17,7 +17,7 @@ declare_exchange(Exchange) -> pubsub_srv:declare_exchange(Exchange).
 
 publish(Exchange, Topic, Message) -> pubsub_srv:publish(Exchange, Topic, Message).
 
-subscribe(Exchange, Topic) when is_atom(Exchange) -> pubsub_srv:subscribe(Exchange, Topic). 
+subscribe(Exchange, Topic) when is_atom(Exchange) -> pubsub_srv:subscribe(Exchange, Topic).
 
 subscribe(Exchange, Topic, Callback) -> pubsub_srv:subscribe(Exchange, Topic, Callback).
 
