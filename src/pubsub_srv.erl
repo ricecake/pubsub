@@ -9,11 +9,11 @@
 -export([start_link/0]).
 -export([
 	init_tables/0,
-	subscribe/1,
 	subscribe/2,
-	unsubscribe/1,
-	publish/2,
-	lookup/1
+	subscribe/3,
+	unsubscribe/2,
+	publish/3,
+	lookup/2
 ]).
 
 %% ------------------------------------------------------------------
@@ -39,25 +39,25 @@ init_tables() ->
 	]),
 	ok.
 
-subscribe(Topics) when is_list(Topics)->
-	gen_server:call(?MODULE, {subscribe, Topics});
-subscribe(Topic) -> subscribe([Topic]).
+subscribe(Exchange, Topics) when is_binary(Exchange), is_list(Topics)->
+	gen_server:call(?MODULE, {subscribe, Exchange, Topics});
+subscribe(Exchange, Topic) -> subscribe(Exchange, [Topic]).
 
-subscribe(Topics, Callback) when is_list(Topics)->
-	gen_server:call(?MODULE, {subscribe, Topics, Callback});
-subscribe(Topic, Callback) -> subscribe([Topic], Callback).
+subscribe(Exchange, Topics, Callback) when is_list(Topics)->
+	gen_server:call(?MODULE, {subscribe, Exchange, Topics, Callback});
+subscribe(Exchange, Topic, Callback) -> subscribe(Exchange, [Topic], Callback).
 
-unsubscribe(Topics) when is_list(Topics)->
-	gen_server:call(?MODULE, {unsubscribe, Topics});
-unsubscribe(Topic) -> unsubscribe([Topic]).
+unsubscribe(Exchange, Topics) when is_list(Topics)->
+	gen_server:call(?MODULE, {unsubscribe, Exchange, Topics});
+unsubscribe(Exchange, Topic) -> unsubscribe(Exchange, [Topic]).
 
-publish(Topic, Message) ->
-	[send_event(Message, self(), Topic, Rec) || Rec <- lookup(Topic)],
+publish(Exchange, Topic, Message) ->
+	[send_event(Message, self(), Topic, Rec) || Rec <- lookup(Exchange, Topic)],
 	ok.
 
-lookup(Route) ->
+lookup(Exchange, Route) ->
 	Path = binary:split(Route, <<".">>, [global]),
-	lists:usort([ Data || {_, Data} <- do_lookup(null, Path, []), Data =/= undefined]).
+	lists:usort([ Data || {_, Data} <- do_lookup({Exchange, null}, Path, []), Data =/= undefined]).
 
 
 %% ------------------------------------------------------------------
@@ -67,25 +67,25 @@ lookup(Route) ->
 init(_Args) ->
 	{ok, #{ subscribers => [] }}.
 
-handle_call({subscribe, Topics}, {From, _}, #{ subscribers := Subs } = State) ->
+handle_call({subscribe, Exchange, Topics}, {From, _}, #{ subscribers := Subs } = State) ->
 	NewSubs = ensure_monitor(From, Subs),
-	true = ets:insert(?MODULE, lists:flatten([routify(Topic, From) || Topic <- Topics])),
+	true = ets:insert(?MODULE, lists:flatten([routify(Exchange, Topic, From) || Topic <- Topics])),
 	{reply, ok, State#{ subscribers :=  NewSubs }};
-handle_call({subscribe, Topics, Callback}, {From, _}, #{ subscribers := Subs } = State) ->
+handle_call({subscribe, Exchange, Topics, Callback}, {From, _}, #{ subscribers := Subs } = State) ->
 	NewSubs = ensure_monitor(From, Subs),
-	true = ets:insert(?MODULE, lists:flatten([routify(Topic, {From, Callback}) || Topic <- Topics])),
+	true = ets:insert(?MODULE, lists:flatten([routify(Exchange, Topic, {From, Callback}) || Topic <- Topics])),
 	{reply, ok, State#{ subscribers :=  NewSubs }};
-handle_call({unsubscribe, Topics}, {From, _}, State) ->
+handle_call({unsubscribe, Exchange, Topics}, {From, _}, State) ->
 	[begin
-		{ok, [Key |_]} = path(Topic),
+		{ok, [Key |_]} = path(Exchange, Topic),
 		true = ets:delete_object(?MODULE, {Key, From})
 	end || Topic <- Topics],
 	{reply, ok, State};
 handle_call(_Request, _From, State) ->
 	{reply, ok, State}.
 
-handle_cast({send, From, Topic, Message}, State) ->
-	[send_event(Message, From, Topic, Rec)|| Rec <- lookup(Topic)],
+handle_cast({send, Exchange, From, Topic, Message}, State) ->
+	[send_event(Message, From, Topic, Rec)|| Rec <- lookup(Exchange, Topic)],
 	{noreply, State};
 handle_cast(_Msg, State) ->
 	{noreply, State}.
@@ -124,17 +124,17 @@ ensure_monitor(New, Existing) when is_pid(New) ->
 			[{New, MonRef} |Existing]
 	end.
 
-routify(Key, Data) ->
-	{ok, [Terminal |Nodes]} = path(Key),
+routify(Exchange, Key, Data) ->
+	{ok, [Terminal |Nodes]} = path(Exchange, Key),
 	[{Terminal, Data}|[ {Node, undefined} || Node <- Nodes]].
 
-path(Key) when is_binary(Key) ->
+path(Exchange, Key) when is_binary(Exchange), is_binary(Key) ->
 	Path = binary:split(Key, <<".">>, [global]),
 	{_, Nodes} = lists:foldl(fun
 		(Node, {null, List}) ->
-			{Node, [{null, Node} |List]};
+			{Node, [{{Exchange, null}, Node} |List]};
 		(Node, {Parent, List}) ->
-			{<< Parent/bits, $., Node/bits >>, [{Parent, Node} |List]}
+			{<< Parent/bits, $., Node/bits >>, [{{Exchange, Parent}, Node} |List]}
 	end, {null, []}, Path),
 	{ok, Nodes}.
 
@@ -179,8 +179,8 @@ resolve_wildcards(Parent, Path, Callbacks) ->
 			Nodes ++ lists:flatten([ do_lookup(HashParent, ThisPath, StarCallbacks) || ThisPath <- subpaths(Path)])
 	end.
 
-derive_newpath(OldPath, Label) ->
+derive_newpath({Exchange, OldPath}, Label) ->
 	if
-		OldPath ==  null -> Label;
-		OldPath =/= null -> << OldPath/bits, $., Label/bits >>
+		OldPath ==  null -> {Exchange, Label};
+		OldPath =/= null -> {Exchange, << OldPath/bits, $., Label/bits >>}
 	end.
