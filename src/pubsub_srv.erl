@@ -190,14 +190,17 @@ derive_newpath({Exchange, OldPath}, Label) ->
 garbage_collect() ->
 	TopLevelNodes = [
 		{Ex, Parent, Node, Val}
-			|| {{{Ex,Parent},Node},Val} <- ets:select(?MODULE, [{{{{'_',null},'_'},'_'}, [], ['$_']}])
+			|| {{{Ex,Parent},Node},Val} <- ets:select(?MODULE, [{{{{'_',null},'_'},'$1'}, [{'==', '$1', undefined}], ['$_']}])
 	],
 	do_gc(TopLevelNodes).
 
 do_gc([]) -> {false, []};
 do_gc([Node |Rest]) ->
+	io:format("~p~n", [[Node|Rest]]),
 	case check_prune(Node) of
-		{false, Candidates} -> do_gc(fastConcat(Candidates, Rest));
+		{false, Candidates} ->
+			{_, Nodes} = do_gc(fastConcat(Candidates, Rest)),
+			{true, Nodes};
 		{true, []} ->
 			ok = purge(Node),
 			do_gc(Rest)
@@ -213,8 +216,10 @@ check_prune({Ex, Parent, Node, Val}) ->
 	end,
 	{not (HasInfo or Children), Candidates}.
 
-
-purge(Node) -> io:format("~p~n", [Node]), ok.
+purge({Ex, Parent, Node, Val}=Value) ->
+	io:format("---~p~n", [Value]),
+	ets:delete_object(?MODULE, {{{Ex, Parent}, Node}, Val}),
+	ok.
 
 fastConcat([], B) -> B;
 fastConcat(A,B) when length(A) > length(B) -> fastConcat(B,A);
