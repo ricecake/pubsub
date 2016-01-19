@@ -13,7 +13,8 @@
 	subscribe/3,
 	unsubscribe/2,
 	publish/3,
-	lookup/2
+	lookup/2,
+	garbage_collect/0
 ]).
 
 %% ------------------------------------------------------------------
@@ -184,3 +185,37 @@ derive_newpath({Exchange, OldPath}, Label) ->
 		OldPath ==  null -> {Exchange, Label};
 		OldPath =/= null -> {Exchange, << OldPath/bits, $., Label/bits >>}
 	end.
+
+
+garbage_collect() ->
+	TopLevelNodes = [
+		{Ex, Parent, Node, Val}
+			|| {{{Ex,Parent},Node},Val} <- ets:select(?MODULE, [{{{{'_',null},'_'},'_'}, [], ['$_']}])
+	],
+	do_gc(TopLevelNodes).
+
+do_gc([]) -> {false, []};
+do_gc([Node |Rest]) ->
+	case check_prune(Node) of
+		{false, Candidates} -> do_gc(fastConcat(Candidates, Rest));
+		{true, []} ->
+			ok = purge(Node),
+			do_gc(Rest)
+	end.
+
+check_prune({Ex, Parent, Node, Val}) ->
+	HasInfo = Val =/= undefined,
+	Key = derive_newpath({Ex, Parent}, Node),
+	{Children, Candidates} = case ets:select(?MODULE, [{{{Key,'_'},'_'}, [], ['$_']}]) of
+		[] -> {false, []};
+		Found when is_list(Found) ->
+			do_gc([{NewEx, NewParent, NewNode, NewVal} || {{{NewEx,NewParent},NewNode},NewVal} <- Found])
+	end,
+	{not (HasInfo or Children), Candidates}.
+
+
+purge(Node) -> io:format("~p~n", [Node]), ok.
+
+fastConcat([], B) -> B;
+fastConcat(A,B) when length(A) > length(B) -> fastConcat(B,A);
+fastConcat(A,B) -> A++B.
