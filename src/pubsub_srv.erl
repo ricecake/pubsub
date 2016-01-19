@@ -14,7 +14,7 @@
 	unsubscribe/2,
 	publish/3,
 	lookup/2,
-	garbage_collect/0
+	compact/0
 ]).
 
 %% ------------------------------------------------------------------
@@ -81,6 +81,7 @@ handle_call({unsubscribe, Exchange, Topics}, {From, _}, State) ->
 		{ok, [Key |_]} = path(Exchange, Topic),
 		true = ets:delete_object(?MODULE, {Key, From})
 	end || Topic <- Topics],
+	compact(),
 	{reply, ok, State};
 handle_call(_Request, _From, State) ->
 	{reply, ok, State}.
@@ -96,6 +97,7 @@ handle_info({'DOWN', Ref, _Type, Subscriber, _Exit}, #{ subscribers := Subs } = 
 		{{'_',Subscriber},[],[true]},
 		{{'_',{Subscriber,'_'}},[],[true]}
 	]),
+	compact(),
 	{noreply, State#{ subscribers := Subs -- [{Subscriber, Ref}] }};
 handle_info(_Info, State) ->
 	{noreply, State}.
@@ -187,7 +189,7 @@ derive_newpath({Exchange, OldPath}, Label) ->
 	end.
 
 
-garbage_collect() ->
+compact() ->
 	TopLevelNodes = [
 		{Ex, Parent, Node, Val}
 			|| {{{Ex,Parent},Node},Val} <- ets:select(?MODULE, [{{{{'_',null},'_'},'$1'}, [{'==', '$1', undefined}], ['$_']}])
@@ -215,7 +217,7 @@ check_prune({Ex, Parent, Node, Val}) ->
 	end,
 	{not (HasInfo or Children), Candidates}.
 
-purge({Ex, Parent, Node, Val}=Value) ->
+purge({Ex, Parent, Node, Val}) ->
 	ets:delete_object(?MODULE, {{{Ex, Parent}, Node}, Val}),
 	ok.
 
