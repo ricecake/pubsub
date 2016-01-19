@@ -196,7 +196,6 @@ garbage_collect() ->
 
 do_gc([]) -> {false, []};
 do_gc([Node |Rest]) ->
-	io:format("~p~n", [[Node|Rest]]),
 	case check_prune(Node) of
 		{false, Candidates} ->
 			{_, Nodes} = do_gc(fastConcat(Candidates, Rest)),
@@ -217,7 +216,6 @@ check_prune({Ex, Parent, Node, Val}) ->
 	{not (HasInfo or Children), Candidates}.
 
 purge({Ex, Parent, Node, Val}=Value) ->
-	io:format("---~p~n", [Value]),
 	ets:delete_object(?MODULE, {{{Ex, Parent}, Node}, Val}),
 	ok.
 
