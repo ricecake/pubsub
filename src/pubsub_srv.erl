@@ -13,8 +13,7 @@
 	subscribe/3,
 	unsubscribe/2,
 	publish/3,
-	lookup/2,
-	compact/0
+	lookup/2
 ]).
 
 %% ------------------------------------------------------------------
